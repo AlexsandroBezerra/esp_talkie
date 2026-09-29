@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "radio_conn.h"
 
 #define PPT_DEBOUNCE_MS 30
 
@@ -45,6 +46,8 @@ static void ppt_task(void *args)
 
 void app_main(void)
 {
+    radio_conn_init();
+
     gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_level(CONFIG_LED_GPIO, 0);
     ESP_LOGI(TAG, "LED GPIO configured");
