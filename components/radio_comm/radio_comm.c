@@ -4,12 +4,13 @@
 #include "esp_now.h"
 #include "radio_comm.h"
 
-#define ESPNOW_CHANNEL 1
-#define ESPNOW_MAXDELAY 512
-#define QUEUE_SIZE 10
+#define RADIO_COMM_CHANNEL 1
+#define RADIO_COMM_QUEUE_SIZE 6
 
 static char* TAG = "radio_comm";
 static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+static uint16_t radio_comm_max_delay = 512;
 
 static QueueHandle_t s_radio_comm_queue = NULL;
 static radio_comm_ppt_status_cb_t radio_comm_ppt_status_cb = NULL;
@@ -22,7 +23,7 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
 
 void radio_comm_init()
 {
-    s_radio_comm_queue = xQueueCreate(QUEUE_SIZE, sizeof(radio_comm_event_t));
+    s_radio_comm_queue = xQueueCreate(RADIO_COMM_QUEUE_SIZE, sizeof(radio_comm_event_t));
     if (s_radio_comm_queue == NULL) {
         ESP_LOGI(TAG, "Error when creating radio conn queur");
         abort();
@@ -51,6 +52,11 @@ void radio_comm_register_ppt_status_cb(radio_comm_ppt_status_cb_t cb)
     ESP_LOGI(TAG, "PPT Status callback registered");
 }
 
+void radio_comm_set_max_delay(uint8_t max_delay)
+{
+    radio_comm_max_delay = max_delay;
+}
+
 static void radio_comm_nvs_init()
 {
     esp_err_t ret = nvs_flash_init();
@@ -70,7 +76,7 @@ static void radio_comm_wifi_init()
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE));
+    ESP_ERROR_CHECK(esp_wifi_set_channel(RADIO_COMM_CHANNEL, WIFI_SECOND_CHAN_NONE));
 }
 
 static void radio_comm_esp_now_init()
@@ -84,7 +90,7 @@ static void radio_comm_esp_now_init()
         abort();
     }
     memset(broadcast_peer, 0, sizeof(esp_now_peer_info_t));
-    broadcast_peer->channel = ESPNOW_CHANNEL;
+    broadcast_peer->channel = RADIO_COMM_CHANNEL;
     broadcast_peer->ifidx = WIFI_IF_STA;
     broadcast_peer->encrypt = false;
     memcpy(broadcast_peer->peer_addr, radio_comm_broadcast_addr, ESP_NOW_ETH_ALEN);
@@ -123,7 +129,7 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
     memcpy(packet, data, len);
     event.packet_len = len;
 
-    if (xQueueSend(s_radio_comm_queue, &event, ESPNOW_MAXDELAY) != pdTRUE) {
+    if (xQueueSend(s_radio_comm_queue, &event, radio_comm_max_delay) != pdTRUE) {
         ESP_LOGW(TAG, "Send receive queue fail");
     }
 }
