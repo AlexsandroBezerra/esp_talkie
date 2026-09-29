@@ -45,7 +45,7 @@ void radio_comm_send_ppt_status(int status)
     esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
 }
 
-void radio_comm_register_ppt_status_callback(radio_comm_ppt_status_cb_t cb)
+void radio_comm_register_ppt_status_cb(radio_comm_ppt_status_cb_t cb)
 {
     radio_comm_ppt_status_cb = cb;
     ESP_LOGI(TAG, "PPT Status callback registered");
