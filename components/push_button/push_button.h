@@ -1,3 +1,5 @@
+#include "driver/gpio.h"
+
 void push_button_init(gpio_num_t gpio_num);
 
 void push_button_set_debounce(int debounce_in_ms);

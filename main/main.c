@@ -1,5 +1,5 @@
 #include "esp_log.h"
-#include "driver/gpio.h"
+#include "led.h"
 #include "radio_comm.h"
 #include "push_button.h"
 
@@ -8,7 +8,7 @@ static const char* TAG = "main";
 static void radio_comm_ppt_status_cb(int status)
 {
     ESP_LOGI(TAG, "Received: %d", status);
-    gpio_set_level(CONFIG_LED_GPIO, status);
+    led_set_level(status);
 }
 
 static void push_button_cb(int level)
@@ -19,9 +19,7 @@ static void push_button_cb(int level)
 
 void app_main(void)
 {
-    gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(CONFIG_LED_GPIO, 0);
-    ESP_LOGI(TAG, "LED GPIO configured");
+    led_init(CONFIG_LED_GPIO);
 
     radio_comm_init();
     radio_comm_register_ppt_status_cb(radio_comm_ppt_status_cb);
