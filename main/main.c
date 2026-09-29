@@ -64,7 +64,7 @@ void app_main(void)
     gpio_config(&ppt_config);
     ESP_LOGI(TAG, "PPT GPIO configured");
 
-    xTaskCreate(ppt_task, "ppt_task", 1024, NULL, 10, &ppt_task_handle);
+    xTaskCreate(ppt_task, "ppt_task", 2048, NULL, 10, &ppt_task_handle);
 
     gpio_install_isr_service(0);
     gpio_isr_handler_add(CONFIG_PPT_GPIO, ppt_isr_handler, (void *)CONFIG_PPT_GPIO);

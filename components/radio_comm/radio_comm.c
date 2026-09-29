@@ -32,7 +32,7 @@ void radio_comm_init()
     radio_comm_wifi_init();
     radio_comm_esp_now_init();
 
-    xTaskCreate(radio_comm_task, "radio_comm_task", 4096, NULL, 20, NULL);
+    xTaskCreate(radio_comm_task, "radio_comm_task", 3072, NULL, 20, NULL);
 
     ESP_LOGI(TAG, "Radio connection initialized");
 }
