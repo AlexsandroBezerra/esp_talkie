@@ -28,22 +28,27 @@ static void ppt_task(void *args)
 
         vTaskDelay(pdMS_TO_TICKS(CONFIG_PPT_DEBOUNCE_MS));
 
-        int current_state = gpio_get_level(CONFIG_PPT_GPIO);
+        int current_state = !gpio_get_level(CONFIG_PPT_GPIO);
 
         if (current_state != last_stable_state)
         {
             last_stable_state = current_state;
-
-            int led_level = !current_state;
-            gpio_set_level(CONFIG_LED_GPIO, led_level);
-            ESP_LOGI(TAG, "Led level setted to %d", led_level);
+            radio_conn_send_ppt_status(current_state);
+            ESP_LOGI(TAG, "Sending current ppt state: %d", current_state);
         }
     }
+}
+
+static void radio_conn_ppt_status_cb(int status)
+{
+    ESP_LOGI(TAG, "Received: %d", status);
+    gpio_set_level(CONFIG_LED_GPIO, status);
 }
 
 void app_main(void)
 {
     radio_conn_init();
+    radio_conn_register_ppt_status_callback(radio_conn_ppt_status_cb);
 
     gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_level(CONFIG_LED_GPIO, 0);

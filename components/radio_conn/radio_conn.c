@@ -1,8 +1,129 @@
 #include "esp_log.h"
+#include "nvs_flash.h"
+#include "esp_wifi.h"
+#include "esp_now.h"
+#include "radio_conn.h"
+
+#define ESPNOW_CHANNEL 1
+#define ESPNOW_MAXDELAY 512
+#define QUEUE_SIZE 10
 
 static char* TAG = "radio_conn";
+static uint8_t radio_conn_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+static QueueHandle_t s_radio_conn_queue = NULL;
+static radio_conn_ppt_status_cb_t radio_conn_ppt_status_cb = NULL;
+
+static void radio_conn_nvs_init();
+static void radio_conn_wifi_init();
+static void radio_conn_esp_now_init();
+static void radio_conn_task(void *pvParameter);
+static void radio_conn_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
 
 void radio_conn_init()
 {
+    s_radio_conn_queue = xQueueCreate(QUEUE_SIZE, sizeof(radio_conn_event_t));
+    if (s_radio_conn_queue == NULL) {
+        ESP_LOGI(TAG, "Error when creating radio conn queur");
+        abort();
+    }
+
+    radio_conn_nvs_init();
+    radio_conn_wifi_init();
+    radio_conn_esp_now_init();
+
+    xTaskCreate(radio_conn_task, "radio_conn_task", 4096, NULL, 20, NULL);
+
     ESP_LOGI(TAG, "Radio connection initialized");
+}
+
+void radio_conn_send_ppt_status(int status)
+{
+    radio_conn_packet_t packet;
+    packet.type = MSG_TYPE_PPT_STATUS;
+    packet.ppt_status = status;
+    esp_now_send(radio_conn_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
+}
+
+void radio_conn_register_ppt_status_callback(radio_conn_ppt_status_cb_t cb)
+{
+    radio_conn_ppt_status_cb = cb;
+    ESP_LOGI(TAG, "PPT Status callback registered");
+}
+
+static void radio_conn_nvs_init()
+{
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK( nvs_flash_erase() );
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+}
+
+static void radio_conn_wifi_init()
+{
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE));
+}
+
+static void radio_conn_esp_now_init()
+{
+    ESP_ERROR_CHECK(esp_now_init());
+    ESP_ERROR_CHECK(esp_now_register_recv_cb(radio_conn_recv_cb));
+
+    esp_now_peer_info_t *broadcast_peer = malloc(sizeof(esp_now_peer_info_t));
+    if (broadcast_peer == NULL) {
+        ESP_LOGE(TAG, "Malloc broadcast_peer information fail");
+        abort();
+    }
+    memset(broadcast_peer, 0, sizeof(esp_now_peer_info_t));
+    broadcast_peer->channel = ESPNOW_CHANNEL;
+    broadcast_peer->ifidx = WIFI_IF_STA;
+    broadcast_peer->encrypt = false;
+    memcpy(broadcast_peer->peer_addr, radio_conn_broadcast_addr, ESP_NOW_ETH_ALEN);
+    ESP_ERROR_CHECK( esp_now_add_peer(broadcast_peer) );
+    free(broadcast_peer);
+}
+
+static void radio_conn_task(void *pvParameter)
+{
+    radio_conn_event_t event;
+
+    ESP_LOGI(TAG, "Radio conn task started...");
+
+    while (xQueueReceive(s_radio_conn_queue, &event, portMAX_DELAY) == pdTRUE)
+    {
+        radio_conn_packet_t packet = event.packet;
+
+        if (packet.type == MSG_TYPE_PPT_STATUS) {
+            radio_conn_ppt_status_cb(packet.ppt_status);
+        }
+    }
+    
+}
+
+static void radio_conn_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len)
+{
+    radio_conn_event_t event;
+    radio_conn_packet_t *packet = &event.packet;
+
+    uint8_t* src_addr = recv_info->src_addr;
+    if (src_addr == NULL || data == NULL || len <= 0) {
+        ESP_LOGE(TAG, "Receive callback arg error");
+        return;
+    }
+
+    memcpy(packet, data, len);
+    event.packet_len = len;
+
+    if (xQueueSend(s_radio_conn_queue, &event, ESPNOW_MAXDELAY) != pdTRUE) {
+        ESP_LOGW(TAG, "Send receive queue fail");
+    }
 }
