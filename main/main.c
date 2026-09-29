@@ -2,7 +2,7 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "radio_conn.h"
+#include "radio_comm.h"
 
 static const char* TAG = "main";
 static TaskHandle_t ppt_task_handle = NULL;
@@ -33,13 +33,13 @@ static void ppt_task(void *args)
         if (current_state != last_stable_state)
         {
             last_stable_state = current_state;
-            radio_conn_send_ppt_status(current_state);
+            radio_comm_send_ppt_status(current_state);
             ESP_LOGI(TAG, "Sending current ppt state: %d", current_state);
         }
     }
 }
 
-static void radio_conn_ppt_status_cb(int status)
+static void radio_comm_ppt_status_cb(int status)
 {
     ESP_LOGI(TAG, "Received: %d", status);
     gpio_set_level(CONFIG_LED_GPIO, status);
@@ -47,8 +47,8 @@ static void radio_conn_ppt_status_cb(int status)
 
 void app_main(void)
 {
-    radio_conn_init();
-    radio_conn_register_ppt_status_callback(radio_conn_ppt_status_cb);
+    radio_comm_init();
+    radio_comm_register_ppt_status_callback(radio_comm_ppt_status_cb);
 
     gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_level(CONFIG_LED_GPIO, 0);
