@@ -1,11 +1,8 @@
-#include "sdkconfig.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "radio_conn.h"
-
-#define PPT_DEBOUNCE_MS 30
 
 static const char* TAG = "main";
 static TaskHandle_t ppt_task_handle = NULL;
@@ -29,7 +26,7 @@ static void ppt_task(void *args)
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        vTaskDelay(pdMS_TO_TICKS(PPT_DEBOUNCE_MS));
+        vTaskDelay(pdMS_TO_TICKS(CONFIG_PPT_DEBOUNCE_MS));
 
         int current_state = gpio_get_level(CONFIG_PPT_GPIO);
 
