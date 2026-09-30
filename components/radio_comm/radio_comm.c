@@ -10,8 +10,6 @@
 static char* TAG = "radio_comm";
 static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
-static uint16_t radio_comm_max_delay = 512;
-
 static QueueHandle_t s_radio_comm_queue = NULL;
 static radio_comm_push_button_level_cb_t radio_comm_push_button_level_cb = NULL;
 
@@ -50,11 +48,6 @@ void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t 
 {
     radio_comm_push_button_level_cb = cb;
     ESP_LOGI(TAG, "Push button level callback registered");
-}
-
-void radio_comm_set_max_delay(uint8_t max_delay)
-{
-    radio_comm_max_delay = max_delay;
 }
 
 static void radio_comm_nvs_init()
@@ -127,14 +120,19 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
 
     uint8_t* src_addr = recv_info->src_addr;
     if (src_addr == NULL || data == NULL || len <= 0) {
-        ESP_LOGE(TAG, "Receive callback arg error");
+        ESP_LOGD(TAG, "Receive callback arg error");
+        return;
+    }
+
+    if (len != sizeof(radio_comm_packet_t)) {
+        ESP_LOGD(TAG, "Received a invalid packet, discarding...");
         return;
     }
 
     memcpy(packet, data, len);
     event.packet_len = len;
 
-    if (xQueueSend(s_radio_comm_queue, &event, radio_comm_max_delay) != pdTRUE) {
-        ESP_LOGW(TAG, "Send receive queue fail");
+    if (xQueueSend(s_radio_comm_queue, &event, 0) != pdTRUE) {
+        ESP_LOGD(TAG, "Queue is full, discarding packet...");
     }
 }
