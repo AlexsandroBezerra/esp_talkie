@@ -7,18 +7,11 @@ menu "Esp Talkie Configuration"
         help
             GPIO number (IOxx) to blink on and off the LED.
 
-    config PPT_GPIO
-        int "PPT GPIO number"
+    config PUSH_BUTTON_GPIO
+        int "Push Button GPIO number"
         range 0 33
         default 22
         help
-            GPIO number (IOxx) to PPT (Push to Talk) button.
-
-    config PPT_DEBOUNCE_MS
-        int "PPT Debounce time"
-        range 10 200
-        default 30
-        help
-            Debounce time in miliseconds of PPT (Push to Talk) button.
+            GPIO number (IOxx) to push button.
 
 endmenu

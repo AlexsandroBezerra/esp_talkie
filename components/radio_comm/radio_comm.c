@@ -13,7 +13,7 @@ static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF,
 static uint16_t radio_comm_max_delay = 512;
 
 static QueueHandle_t s_radio_comm_queue = NULL;
-static radio_comm_ppt_status_cb_t radio_comm_ppt_status_cb = NULL;
+static radio_comm_push_button_level_cb_t radio_comm_push_button_level_cb = NULL;
 
 static void radio_comm_nvs_init();
 static void radio_comm_wifi_init();
@@ -38,18 +38,18 @@ void radio_comm_init()
     ESP_LOGI(TAG, "Radio connection initialized");
 }
 
-void radio_comm_send_ppt_status(int status)
+void radio_comm_send_push_button_level(int status)
 {
     radio_comm_packet_t packet;
-    packet.type = MSG_TYPE_PPT_STATUS;
-    packet.ppt_status = status;
+    packet.type = MSG_TYPE_PUSH_BUTTON_LEVEL;
+    packet.push_button_level = status;
     esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
 }
 
-void radio_comm_register_ppt_status_cb(radio_comm_ppt_status_cb_t cb)
+void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t cb)
 {
-    radio_comm_ppt_status_cb = cb;
-    ESP_LOGI(TAG, "PPT Status callback registered");
+    radio_comm_push_button_level_cb = cb;
+    ESP_LOGI(TAG, "Push button level callback registered");
 }
 
 void radio_comm_set_max_delay(uint8_t max_delay)
@@ -108,8 +108,8 @@ static void radio_comm_task(void *pvParameter)
     {
         radio_comm_packet_t packet = event.packet;
 
-        if (packet.type == MSG_TYPE_PPT_STATUS) {
-            radio_comm_ppt_status_cb(packet.ppt_status);
+        if (packet.type == MSG_TYPE_PUSH_BUTTON_LEVEL) {
+            radio_comm_push_button_level_cb(packet.push_button_level);
         }
     }
     

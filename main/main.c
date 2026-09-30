@@ -5,16 +5,16 @@
 
 static const char* TAG = "main";
 
-static void radio_comm_ppt_status_cb(int status)
+static void radio_comm_push_button_level_cb(int status)
 {
-    ESP_LOGI(TAG, "Received: %d", status);
+    ESP_LOGI(TAG, "Received from radio_comm: %d", status);
     led_set_level(status);
 }
 
-static void push_button_cb(int level)
+static void push_button_level_cb(int level)
 {
     ESP_LOGI(TAG, "Push button level: %d", level);
-    radio_comm_send_ppt_status(level);
+    radio_comm_send_push_button_level(level);
 }
 
 void app_main(void)
@@ -22,8 +22,8 @@ void app_main(void)
     led_init(CONFIG_LED_GPIO);
 
     radio_comm_init();
-    radio_comm_register_ppt_status_cb(radio_comm_ppt_status_cb);
+    radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb);
 
-    push_button_init(CONFIG_PPT_GPIO);
-    push_button_register_level_cb(push_button_cb);
+    push_button_init(CONFIG_PUSH_BUTTON_GPIO);
+    push_button_register_level_cb(push_button_level_cb);
 }
