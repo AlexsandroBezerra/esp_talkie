@@ -6,7 +6,7 @@
 
 static const char* TAG = "push_button";
 static gpio_num_t push_button_gpio = GPIO_NUM_NC;
-static int push_button_debounce = 30;
+static uint8_t push_button_debounce = 30;
 
 static TaskHandle_t push_button_handle = NULL;
 static push_button_level_cb_t push_button_level_cb = NULL;
@@ -33,7 +33,7 @@ void push_button_init(gpio_num_t gpio_num)
     gpio_isr_handler_add(push_button_gpio, push_button_isr_handler, (void *)push_button_gpio);
 }
 
-void push_button_set_debounce(int debounce_in_ms)
+void push_button_set_debounce(uint8_t debounce_in_ms)
 {
     push_button_debounce = debounce_in_ms;
     ESP_LOGI(TAG, "Push button debounce setted to %d ms", push_button_debounce);
@@ -58,7 +58,7 @@ static void IRAM_ATTR push_button_isr_handler(void *args)
 
 static void push_button_task(void *args)
 {
-    int last_stable_state = -1;
+    int8_t last_stable_state = -1;
 
     while (1)
     {
@@ -66,11 +66,12 @@ static void push_button_task(void *args)
 
         vTaskDelay(pdMS_TO_TICKS(push_button_debounce));
 
-        int current_state = !gpio_get_level(push_button_gpio);
+        int8_t current_state = !gpio_get_level(push_button_gpio);
 
         if (current_state != last_stable_state)
         {
             last_stable_state = current_state;
+
             push_button_level_cb(current_state);
         }
     }

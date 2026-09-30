@@ -38,11 +38,11 @@ void radio_comm_init()
     ESP_LOGI(TAG, "Radio connection initialized");
 }
 
-void radio_comm_send_push_button_level(int status)
+void radio_comm_send_push_button_level(uint8_t level)
 {
     radio_comm_packet_t packet;
     packet.type = MSG_TYPE_PUSH_BUTTON_LEVEL;
-    packet.push_button_level = status;
+    packet.push_button_level = level;
     esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
 }
 

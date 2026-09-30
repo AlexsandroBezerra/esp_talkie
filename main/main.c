@@ -5,13 +5,13 @@
 
 static const char* TAG = "main";
 
-static void radio_comm_push_button_level_cb(int status)
+static void radio_comm_push_button_level_cb(uint8_t level)
 {
-    ESP_LOGI(TAG, "Received from radio_comm: %d", status);
-    led_set_level(status);
+    ESP_LOGI(TAG, "Received from radio_comm: %d", level);
+    led_set_level(level);
 }
 
-static void push_button_level_cb(int level)
+static void push_button_level_cb(uint8_t level)
 {
     ESP_LOGI(TAG, "Push button level: %d", level);
     radio_comm_send_push_button_level(level);
