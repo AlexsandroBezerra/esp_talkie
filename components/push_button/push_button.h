@@ -1,3 +1,5 @@
+#pragma once
+
 #include "driver/gpio.h"
 
 void push_button_init(gpio_num_t gpio_num);
