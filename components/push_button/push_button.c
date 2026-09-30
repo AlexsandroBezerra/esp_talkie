@@ -72,6 +72,11 @@ static void push_button_task(void *args)
         {
             last_stable_state = current_state;
 
+            if (push_button_level_cb == NULL) {
+                ESP_LOGW(TAG, "push_button_level_cb is NULL, discarding push button update...");
+                continue;
+            }
+
             push_button_level_cb(current_state);
         }
     }

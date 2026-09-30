@@ -109,6 +109,11 @@ static void radio_comm_task(void *pvParameter)
         radio_comm_packet_t packet = event.packet;
 
         if (packet.type == MSG_TYPE_PUSH_BUTTON_LEVEL) {
+            if (radio_comm_push_button_level_cb == NULL) {
+                ESP_LOGW(TAG, "radio_comm_push_button_level_cb is NULL, discarding packet...");
+                continue;
+            }
+
             radio_comm_push_button_level_cb(packet.push_button_level);
         }
     }
