@@ -6,6 +6,7 @@
 
 #define RADIO_COMM_CHANNEL 1
 #define RADIO_COMM_QUEUE_SIZE 6
+#define RADIO_COMM_MAGIC_NUMBER 0xAAAA
 
 static char* TAG = "radio_comm";
 static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -18,6 +19,7 @@ static void radio_comm_wifi_init();
 static void radio_comm_esp_now_init();
 static void radio_comm_task(void *pvParameter);
 static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
+static void radio_comm_send(uint8_t type, uint8_t level);
 
 void radio_comm_init()
 {
@@ -38,16 +40,26 @@ void radio_comm_init()
 
 void radio_comm_send_push_button_level(uint8_t level)
 {
-    radio_comm_packet_t packet;
-    packet.type = MSG_TYPE_PUSH_BUTTON_LEVEL;
-    packet.push_button_level = level;
-    esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
+    radio_comm_send(MSG_TYPE_PUSH_BUTTON_LEVEL, level);
 }
 
 void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t cb)
 {
     radio_comm_push_button_level_cb = cb;
     ESP_LOGI(TAG, "Push button level callback registered");
+}
+
+static void radio_comm_send(uint8_t type, uint8_t level)
+{
+    radio_comm_header_t header;
+    header.magic = RADIO_COMM_MAGIC_NUMBER;
+    header.type = type;
+
+    radio_comm_packet_t packet;
+    packet.header = header;
+    packet.push_button_level = level;
+
+    esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
 }
 
 static void radio_comm_nvs_init()
@@ -101,7 +113,7 @@ static void radio_comm_task(void *pvParameter)
     {
         radio_comm_packet_t packet = event.packet;
 
-        if (packet.type == MSG_TYPE_PUSH_BUTTON_LEVEL) {
+        if (packet.header.type == MSG_TYPE_PUSH_BUTTON_LEVEL) {
             if (radio_comm_push_button_level_cb == NULL) {
                 ESP_LOGW(TAG, "radio_comm_push_button_level_cb is NULL, discarding packet...");
                 continue;
@@ -131,6 +143,11 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
 
     memcpy(packet, data, len);
     event.packet_len = len;
+
+    if (packet->header.magic != RADIO_COMM_MAGIC_NUMBER) {
+        ESP_LOGD(TAG, "Invalid magic number, discarding packet...");
+        return;
+    }
 
     if (xQueueSend(s_radio_comm_queue, &event, 0) != pdTRUE) {
         ESP_LOGD(TAG, "Queue is full, discarding packet...");

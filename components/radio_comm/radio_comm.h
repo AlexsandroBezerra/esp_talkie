@@ -7,7 +7,12 @@ typedef enum {
 } radio_comm_message_type_t;
 
 typedef struct {
+    uint16_t magic;
     uint8_t type;
+}__attribute__((packed)) radio_comm_header_t;
+
+typedef struct {
+    radio_comm_header_t header;
     uint8_t push_button_level;
 } __attribute__((packed)) radio_comm_packet_t;
 
