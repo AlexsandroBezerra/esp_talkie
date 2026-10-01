@@ -1,5 +1,4 @@
 #include "esp_log.h"
-#include "nvs_flash.h"
 #include "esp_wifi.h"
 #include "esp_now.h"
 #include "radio_comm.h"
@@ -25,7 +24,6 @@ void radio_comm_init()
         abort();
     }
 
-    radio_comm_nvs_init();
     radio_comm_wifi_init();
     radio_comm_esp_now_init();
 
@@ -56,16 +54,6 @@ static void radio_comm_send(uint8_t type, uint8_t level)
     packet.push_button_level = level;
 
     esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
-}
-
-static void radio_comm_nvs_init()
-{
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK( nvs_flash_erase() );
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
 }
 
 static void radio_comm_wifi_init()

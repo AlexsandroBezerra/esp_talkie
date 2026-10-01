@@ -15,5 +15,4 @@ void led_init(gpio_num_t gpio_num)
 void led_set_level(uint32_t level)
 {
     gpio_set_level(led_gpio, level);
-    ESP_LOGI(TAG, "Led level setted to %d", level);
 }
