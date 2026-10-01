@@ -5,13 +5,64 @@ menu "Esp Talkie Configuration"
         range 0 33
         default 2
         help
-            GPIO number (IOxx) to blink on and off the LED.
+            GPIO number (IOxx) of the LED that shows the push button level
+            received from the other boards. The LED turns on while a remote
+            push button is pressed.
+
+            The default (GPIO 2) is the on-board LED of most ESP32 DevKit
+            boards.
 
     config PUSH_BUTTON_GPIO
-        int "Push Button GPIO number"
+        int "Push button GPIO number"
         range 0 33
         default 22
         help
-            GPIO number (IOxx) to push button.
+            GPIO number (IOxx) of the push button. The pin is configured as
+            an input with the internal pull-up enabled, so wire the button
+            between this GPIO and GND (pressed = low level).
+
+            GPIOs 34-39 are input-only and have no internal pull-up, so they
+            are not allowed here.
+
+    menu "Radio Communication"
+
+        config RADIO_COMM_CHANNEL
+            int "Wi-Fi channel"
+            range 1 14
+            default 1
+            help
+                Wi-Fi channel that ESP-NOW uses to send and receive packets.
+
+                All boards must use the same channel, or they will not hear
+                each other. Channels 12-14 are not allowed in every country,
+                so check your local regulations before using them.
+
+        config RADIO_COMM_QUEUE_SIZE
+            int "Receive queue size"
+            range 2 20
+            default 6
+            help
+                Maximum number of received packets waiting to be processed.
+
+                The ESP-NOW receive callback places each valid packet in this
+                queue, and the radio_comm task takes them out and dispatches
+                them. When the queue is full, new packets are discarded.
+                A larger queue tolerates bursts better, at the cost of RAM.
+
+        config RADIO_COMM_MAGIC_NUMBER
+            hex "Packet magic number"
+            range 0x0000 0xFFFF
+            default 0xABDC
+            help
+                16-bit value sent at the start of every packet header. When a
+                packet arrives with a different value, the receiver discards
+                it, which filters out ESP-NOW traffic from other applications
+                on the same channel.
+
+                All boards must use the same value. Prefer a value whose two
+                bytes are different (e.g. 0xABDC instead of 0xAAAA), so that
+                byte-order mistakes are detected instead of passing silently.
+
+    endmenu
 
 endmenu

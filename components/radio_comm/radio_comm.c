@@ -4,10 +4,6 @@
 #include "esp_now.h"
 #include "radio_comm.h"
 
-#define RADIO_COMM_CHANNEL 1
-#define RADIO_COMM_QUEUE_SIZE 6
-#define RADIO_COMM_MAGIC_NUMBER 0xAAAA
-
 static char* TAG = "radio_comm";
 static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
@@ -23,7 +19,7 @@ static void radio_comm_send(uint8_t type, uint8_t level);
 
 void radio_comm_init()
 {
-    s_radio_comm_queue = xQueueCreate(RADIO_COMM_QUEUE_SIZE, sizeof(radio_comm_event_t));
+    s_radio_comm_queue = xQueueCreate(CONFIG_RADIO_COMM_QUEUE_SIZE, sizeof(radio_comm_event_t));
     if (s_radio_comm_queue == NULL) {
         ESP_LOGI(TAG, "Error when creating radio conn queur");
         abort();
@@ -52,7 +48,7 @@ void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t 
 static void radio_comm_send(uint8_t type, uint8_t level)
 {
     radio_comm_header_t header;
-    header.magic = RADIO_COMM_MAGIC_NUMBER;
+    header.magic = CONFIG_RADIO_COMM_MAGIC_NUMBER;
     header.type = type;
 
     radio_comm_packet_t packet;
@@ -81,7 +77,7 @@ static void radio_comm_wifi_init()
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_channel(RADIO_COMM_CHANNEL, WIFI_SECOND_CHAN_NONE));
+    ESP_ERROR_CHECK(esp_wifi_set_channel(CONFIG_RADIO_COMM_CHANNEL, WIFI_SECOND_CHAN_NONE));
 }
 
 static void radio_comm_esp_now_init()
@@ -95,7 +91,7 @@ static void radio_comm_esp_now_init()
         abort();
     }
     memset(broadcast_peer, 0, sizeof(esp_now_peer_info_t));
-    broadcast_peer->channel = RADIO_COMM_CHANNEL;
+    broadcast_peer->channel = CONFIG_RADIO_COMM_CHANNEL;
     broadcast_peer->ifidx = WIFI_IF_STA;
     broadcast_peer->encrypt = false;
     memcpy(broadcast_peer->peer_addr, radio_comm_broadcast_addr, ESP_NOW_ETH_ALEN);
@@ -144,7 +140,7 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
     memcpy(packet, data, len);
     event.packet_len = len;
 
-    if (packet->header.magic != RADIO_COMM_MAGIC_NUMBER) {
+    if (packet->header.magic != CONFIG_RADIO_COMM_MAGIC_NUMBER) {
         ESP_LOGD(TAG, "Invalid magic number, discarding packet...");
         return;
     }
