@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
-                    REQUIRES nvs_flash led radio_comm push_button)
+                    REQUIRES flash_memory led radio_comm push_button)
