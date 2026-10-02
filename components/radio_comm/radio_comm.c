@@ -2,6 +2,7 @@
 #include "esp_wifi.h"
 #include "esp_now.h"
 #include "radio_comm.h"
+#include "esp_check.h"
 
 static const char* TAG = "radio_comm";
 
@@ -10,34 +11,39 @@ static uint16_t magic_number;
 static QueueHandle_t s_radio_comm_queue = NULL;
 static radio_comm_push_button_level_cb_t radio_comm_push_button_level_cb = NULL;
 
-static void radio_comm_wifi_init(radio_comm_config_t config);
-static void radio_comm_esp_now_init(radio_comm_config_t config);
+static esp_err_t radio_comm_wifi_init(radio_comm_config_t config);
+static esp_err_t radio_comm_esp_now_init(radio_comm_config_t config);
+static esp_err_t radio_comm_send(uint8_t type, uint8_t level);
 static void radio_comm_task(void *pvParameter);
 static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
-static void radio_comm_send(uint8_t type, uint8_t level);
 
-void radio_comm_init(radio_comm_config_t config)
+esp_err_t radio_comm_init(radio_comm_config_t config)
 {
     s_radio_comm_queue = xQueueCreate(config.queue_size, sizeof(radio_comm_event_t));
     if (s_radio_comm_queue == NULL) {
-        ESP_LOGI(TAG, "Error when creating radio conn queur");
-        abort();
+        ESP_LOGI(TAG, "Error when creating radio conn queue");
+        return ESP_FAIL;
     }
 
     magic_number = config.magic_number;
     memcpy(peer_mac, config.peer_mac, RADIO_COMM_MAC_LEN);
 
-    radio_comm_wifi_init(config);
-    radio_comm_esp_now_init(config);
+    esp_err_t err = radio_comm_wifi_init(config);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to init wifi");
+    
+    err = radio_comm_esp_now_init(config);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to init esp_now");
 
     xTaskCreate(radio_comm_task, "radio_comm_task", 3072, NULL, 20, NULL);
 
     ESP_LOGI(TAG, "Radio connection initialized");
+
+    return ESP_OK;
 }
 
-void radio_comm_send_push_button_level(uint8_t level)
+esp_err_t radio_comm_send_push_button_level(uint8_t level)
 {
-    radio_comm_send(MSG_TYPE_PUSH_BUTTON_LEVEL, level);
+    return radio_comm_send(MSG_TYPE_PUSH_BUTTON_LEVEL, level);
 }
 
 void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t cb)
@@ -46,35 +52,39 @@ void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t 
     ESP_LOGI(TAG, "Push button level callback registered");
 }
 
-static void radio_comm_send(uint8_t type, uint8_t level)
+static esp_err_t radio_comm_wifi_init(radio_comm_config_t config)
 {
-    radio_comm_header_t header;
-    header.magic = magic_number;
-    header.type = type;
-
-    radio_comm_packet_t packet;
-    packet.header = header;
-    packet.push_button_level = level;
-
-    esp_now_send(peer_mac, (uint8_t *) &packet, sizeof(packet));
-}
-
-static void radio_comm_wifi_init(radio_comm_config_t config)
-{
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_err_t err = esp_netif_init();
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to init net");
+    err = esp_event_loop_create_default();
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to create event loop");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_channel(config.channel, WIFI_SECOND_CHAN_NONE));
+    err = esp_wifi_init(&cfg);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to init wifi");
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to set storage");
+    err = esp_wifi_set_mode(WIFI_MODE_STA);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to set wifi mode");
+    err = esp_wifi_start();
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to start wifi");
+    err = esp_wifi_set_channel(config.channel, WIFI_SECOND_CHAN_NONE);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to set channel");
+    return ESP_OK;
 }
 
-static void radio_comm_esp_now_init(radio_comm_config_t config)
+static esp_err_t radio_comm_esp_now_init(radio_comm_config_t config)
 {
-    ESP_ERROR_CHECK(esp_now_init());
-    ESP_ERROR_CHECK(esp_now_register_recv_cb(radio_comm_recv_cb));
+    _Static_assert(sizeof(CONFIG_RADIO_COMM_PMK) - 1 == ESP_NOW_KEY_LEN, "PMK must be 16 chars");
+    _Static_assert(sizeof(CONFIG_RADIO_COMM_LMK) - 1 == ESP_NOW_KEY_LEN, "LMK must be 16 chars");
+    
+    esp_err_t err = esp_now_init();
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to init esp_now");
+
+    err = esp_now_register_recv_cb(radio_comm_recv_cb);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to register recv cb");
+
+    err = esp_now_set_pmk((uint8_t *)CONFIG_RADIO_COMM_PMK);
+    ESP_RETURN_ON_ERROR(err, TAG, "failed to set pmk");
 
     esp_now_peer_info_t *peer = malloc(sizeof(esp_now_peer_info_t));
     if (peer == NULL) {
@@ -84,10 +94,26 @@ static void radio_comm_esp_now_init(radio_comm_config_t config)
     memset(peer, 0, sizeof(esp_now_peer_info_t));
     peer->channel = config.channel;
     peer->ifidx = WIFI_IF_STA;
-    peer->encrypt = false;
+    peer->encrypt = true;
+    memcpy(peer->lmk, CONFIG_RADIO_COMM_LMK, ESP_NOW_KEY_LEN);
     memcpy(peer->peer_addr, peer_mac, ESP_NOW_ETH_ALEN);
-    ESP_ERROR_CHECK(esp_now_add_peer(peer));
+    
+    err = esp_now_add_peer(peer);
     free(peer);
+    return err;
+}
+
+static esp_err_t radio_comm_send(uint8_t type, uint8_t level)
+{
+    radio_comm_header_t header;
+    header.magic = magic_number;
+    header.type = type;
+
+    radio_comm_packet_t packet;
+    packet.header = header;
+    packet.push_button_level = level;
+
+    return esp_now_send(peer_mac, (uint8_t *) &packet, sizeof(packet));
 }
 
 static void radio_comm_task(void *pvParameter)
@@ -117,8 +143,7 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
     radio_comm_event_t event;
     radio_comm_packet_t *packet = &event.packet;
 
-    uint8_t* src_addr = recv_info->src_addr;
-    if (src_addr == NULL || data == NULL || len <= 0) {
+    if (recv_info == NULL || recv_info->src_addr == NULL || data == NULL || len <= 0) {
         ESP_LOGD(TAG, "Receive callback arg error");
         return;
     }
@@ -128,8 +153,12 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
         return;
     }
 
+    if (memcmp(recv_info->src_addr, peer_mac, RADIO_COMM_MAC_LEN) != 0) {
+        ESP_LOGD(TAG, "Packet from unknown sender, discarding...");
+        return;
+    }
+
     memcpy(packet, data, len);
-    event.packet_len = len;
 
     if (packet->header.magic != magic_number) {
         ESP_LOGD(TAG, "Invalid magic number, discarding packet...");

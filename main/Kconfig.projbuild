@@ -62,6 +62,18 @@ menu "Esp Talkie Configuration"
                 All boards must use the same value. Prefer a value whose two
                 bytes are different (e.g. 0xABDC instead of 0xAAAA), so that
                 byte-order mistakes are detected instead of passing silently.
+        
+        config RADIO_COMM_PMK
+            string "ESPNOW primary master key"
+            default "pmk1234567890123"
+            help
+                ESPNOW primary master for the example to use. The length of ESPNOW primary master must be 16 bytes.
+
+        config RADIO_COMM_LMK
+            string "ESPNOW local master key"
+            default "lmk1234567890123"
+            help
+                ESPNOW local master for the example to use. The length of ESPNOW local master must be 16 bytes.
 
     endmenu
 

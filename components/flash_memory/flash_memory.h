@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+#include "esp_err.h"
+
 #define FLASH_MEMORY_MAC_LEN 6
 
 esp_err_t flash_memory_init(void);

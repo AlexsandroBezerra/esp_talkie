@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "esp_err.h"
 
 #define RADIO_COMM_MAC_LEN 6
 
@@ -20,7 +21,6 @@ typedef struct {
 
 typedef struct {
     radio_comm_packet_t packet;
-    int packet_len;
 } radio_comm_event_t;
 
 typedef void (*radio_comm_push_button_level_cb_t)(uint8_t level);
@@ -32,8 +32,8 @@ typedef struct {
     uint8_t queue_size;
 } radio_comm_config_t;
 
-void radio_comm_init(radio_comm_config_t config);
+esp_err_t radio_comm_init(radio_comm_config_t config);
 
-void radio_comm_send_push_button_level(uint8_t level);
+esp_err_t radio_comm_send_push_button_level(uint8_t level);
 
 void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t cb);
