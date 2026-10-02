@@ -3,29 +3,32 @@
 #include "esp_now.h"
 #include "radio_comm.h"
 
-static char* TAG = "radio_comm";
-static uint8_t radio_comm_broadcast_addr[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static const char* TAG = "radio_comm";
 
+static uint8_t peer_mac[RADIO_COMM_MAC_LEN];
+static uint16_t magic_number;
 static QueueHandle_t s_radio_comm_queue = NULL;
 static radio_comm_push_button_level_cb_t radio_comm_push_button_level_cb = NULL;
 
-static void radio_comm_nvs_init();
-static void radio_comm_wifi_init();
-static void radio_comm_esp_now_init();
+static void radio_comm_wifi_init(radio_comm_config_t config);
+static void radio_comm_esp_now_init(radio_comm_config_t config);
 static void radio_comm_task(void *pvParameter);
 static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len);
 static void radio_comm_send(uint8_t type, uint8_t level);
 
-void radio_comm_init()
+void radio_comm_init(radio_comm_config_t config)
 {
-    s_radio_comm_queue = xQueueCreate(CONFIG_RADIO_COMM_QUEUE_SIZE, sizeof(radio_comm_event_t));
+    s_radio_comm_queue = xQueueCreate(config.queue_size, sizeof(radio_comm_event_t));
     if (s_radio_comm_queue == NULL) {
         ESP_LOGI(TAG, "Error when creating radio conn queur");
         abort();
     }
 
-    radio_comm_wifi_init();
-    radio_comm_esp_now_init();
+    magic_number = config.magic_number;
+    memcpy(peer_mac, config.peer_mac, RADIO_COMM_MAC_LEN);
+
+    radio_comm_wifi_init(config);
+    radio_comm_esp_now_init(config);
 
     xTaskCreate(radio_comm_task, "radio_comm_task", 3072, NULL, 20, NULL);
 
@@ -46,17 +49,17 @@ void radio_comm_register_push_button_level_cb(radio_comm_push_button_level_cb_t 
 static void radio_comm_send(uint8_t type, uint8_t level)
 {
     radio_comm_header_t header;
-    header.magic = CONFIG_RADIO_COMM_MAGIC_NUMBER;
+    header.magic = magic_number;
     header.type = type;
 
     radio_comm_packet_t packet;
     packet.header = header;
     packet.push_button_level = level;
 
-    esp_now_send(radio_comm_broadcast_addr, (uint8_t *) &packet, sizeof(packet));
+    esp_now_send(peer_mac, (uint8_t *) &packet, sizeof(packet));
 }
 
-static void radio_comm_wifi_init()
+static void radio_comm_wifi_init(radio_comm_config_t config)
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -65,26 +68,26 @@ static void radio_comm_wifi_init()
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_channel(CONFIG_RADIO_COMM_CHANNEL, WIFI_SECOND_CHAN_NONE));
+    ESP_ERROR_CHECK(esp_wifi_set_channel(config.channel, WIFI_SECOND_CHAN_NONE));
 }
 
-static void radio_comm_esp_now_init()
+static void radio_comm_esp_now_init(radio_comm_config_t config)
 {
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(radio_comm_recv_cb));
 
-    esp_now_peer_info_t *broadcast_peer = malloc(sizeof(esp_now_peer_info_t));
-    if (broadcast_peer == NULL) {
-        ESP_LOGE(TAG, "Malloc broadcast_peer information fail");
+    esp_now_peer_info_t *peer = malloc(sizeof(esp_now_peer_info_t));
+    if (peer == NULL) {
+        ESP_LOGE(TAG, "Malloc peer information fail");
         abort();
     }
-    memset(broadcast_peer, 0, sizeof(esp_now_peer_info_t));
-    broadcast_peer->channel = CONFIG_RADIO_COMM_CHANNEL;
-    broadcast_peer->ifidx = WIFI_IF_STA;
-    broadcast_peer->encrypt = false;
-    memcpy(broadcast_peer->peer_addr, radio_comm_broadcast_addr, ESP_NOW_ETH_ALEN);
-    ESP_ERROR_CHECK( esp_now_add_peer(broadcast_peer) );
-    free(broadcast_peer);
+    memset(peer, 0, sizeof(esp_now_peer_info_t));
+    peer->channel = config.channel;
+    peer->ifidx = WIFI_IF_STA;
+    peer->encrypt = false;
+    memcpy(peer->peer_addr, peer_mac, ESP_NOW_ETH_ALEN);
+    ESP_ERROR_CHECK(esp_now_add_peer(peer));
+    free(peer);
 }
 
 static void radio_comm_task(void *pvParameter)
@@ -128,7 +131,7 @@ static void radio_comm_recv_cb(const esp_now_recv_info_t *recv_info, const uint8
     memcpy(packet, data, len);
     event.packet_len = len;
 
-    if (packet->header.magic != CONFIG_RADIO_COMM_MAGIC_NUMBER) {
+    if (packet->header.magic != magic_number) {
         ESP_LOGD(TAG, "Invalid magic number, discarding packet...");
         return;
     }
