@@ -20,7 +20,14 @@ static void push_button_level_cb(uint8_t level)
 
 void app_main(void)
 {
-    flash_memory_init();
+    uint8_t mac_peer[FLASH_MEMORY_MAC_LEN];
+    
+    ESP_ERROR_CHECK(flash_memory_init());
+    esp_err_t ret = flash_memory_get_peer_mac(mac_peer);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "error when getting mac peer: %s", esp_err_to_name(ret));
+        return;
+    }
 
     led_init(CONFIG_LED_GPIO);
 
