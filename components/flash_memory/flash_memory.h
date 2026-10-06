@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdint.h>
 #include "esp_err.h"
+#include <stdint.h>
 
 #define FLASH_MEMORY_MAC_LEN 6
 
